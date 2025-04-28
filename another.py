@@ -1,6 +1,9 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 import sqlite3
+import logging
+from datetime import date
+from tkinter import ttk
 
 class login:
 
@@ -23,17 +26,22 @@ class login:
         tk.Button(window, text="Login", bg="white", command=self.check_login).pack(pady=10)
 
     def check_login(self):
-        """Checks if login credentials are correct."""
-        username = self.username_entry.get()
-        password = self.password_entry.get()
+        try:
+            """Checks if login credentials are correct."""
+            username = self.username_entry.get()
+            password = self.password_entry.get()
 
-        if username == "bakali" and password == "cibah1234":  # Change as needed
-            self.window.destroy()  # Close login window
-            main_window = tk.Tk()
-            HostelManagementSystem(main_window)  # Open main system
-            main_window.mainloop()
-        else:
-            messagebox.showerror("Error", "Invalid Username or Password")
+            if username == "bakali" and password == "cibah1234":  # Change as needed
+                self.window.destroy()  # Close login window
+                main_window = tk.Tk()
+                HostelManagementSystem(main_window)  # Open main system
+                main_window.mainloop()
+            else:
+                messagebox.showerror("Error", "Invalid Username or Password")
+            
+        except Exception as e:
+            logging.error("Login failed: %s", e)
+            messagebox.showerror("Login Error", "Unexpected error during login.")    
 
 
 class HostelManagementSystem:
@@ -59,22 +67,21 @@ class HostelManagementSystem:
         self.create_table()
 
         # Title
-        self.label = tk.Label(window, text="Hostel Management System", fg="white", bg="#0BA68A",
-                              font=("Times New Roman", 20))
+        self.label = tk.Label(window, text="Hostel Management System", fg="white", bg="#0BA68A",font=("Times New Roman", 20))
         self.label.pack(pady=20)
 
         # Student Name
-        tk.Label(self.window, text="Student Name:", bg="#0BA68A", fg="white").pack()
-        self.name_entry = tk.Entry(self.window)
-        self.name_entry.pack(pady=5)
+       # tk.Label(self.window, text="Student Name:", bg="#0BA68A", fg="white").pack()
+        #self.name_entry = tk.Entry(self.window)
+        #self.name_entry.pack(pady=5)
 
         # Room Number
-        tk.Label(self.window, text="Room Number:", bg="#0BA68A", fg="white").pack()
-        self.room_entry = tk.Entry(self.window)
-        self.room_entry.pack(pady=5)
+        #tk.Label(self.window, text="Room Number:", bg="#0BA68A", fg="white").pack()
+        #self.room_entry = tk.Entry(self.window)
+        #self.room_entry.pack(pady=5)
 
         # Buttons
-        self.add_student_button = tk.Button(window, text="Add Student", bg="#0BA68A", command=self.add_student)
+        self.add_student_button = tk.Button(window, text="Add Student", bg="#0BA68A", command=self.show_add_student_form)
         self.add_student_button.pack(pady=10)
 
         self.view_students_button = tk.Button(window, text="View Students", bg="#0BA68A", command=self.view_students)
@@ -88,17 +95,24 @@ class HostelManagementSystem:
 
         self.delete_button = tk.Button(window, text="Delete Student", bg="#0BA68A", command=self.show_delete_form)
         self.delete_button.pack(pady=10)
+        
+        
 
         # Add Student Form Frame (initially hidden)
         self.add_student_frame = tk.Frame(self.window, bg="#0BA68A")
 
-        tk.Label(self.add_student_frame, text="Student Name:", bg="#0BA68A", fg="white").pack()
-        self.name_entry = tk.Entry(self.add_student_frame)
+        """tk.Label(self.add_student_frame, text="Student Name:", bg="#0BA68A", fg="white").pack()
+        self.name_entry_add = tk.Entry(window)
 
         tk.Label(self.add_student_frame, text="Room Number:", bg="#0BA68A", fg="white").pack()
-        self.room_entry = tk.Entry(self.add_student_frame)
+        self.name_entry_add = tk.Entry(window)"""
 
-        self.submit_student_button = tk.Button(self.add_student_frame, text="Submit", bg="#0BA68A", command=self.add_student)
+        self.name_entry = None
+        self.room_entry = None
+        self.name_label = None
+        self.room_label = None
+
+        #self.submit_student_button = tk.Button(self.add_student_frame, text="Submit", bg="#0BA68A", command=self.add_student)
 
         # Update Student Form (initially hidden)
         self.update_frame = tk.Frame(self.window, bg="#0BA68A")
@@ -122,21 +136,71 @@ class HostelManagementSystem:
         self.update_frame.pack(pady=10)  # Shows the form when "Update Student Info" is clicked
 
     def create_table(self):
-        # Creates the students table if it doesn't exist.
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS students (
+        # Creates the students table.
+        try:
+            self.cursor.execute("""
+                CREATE TABLE IF NOT EXISTS students (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    age INTEGER,
+                    room_number TEXT NOT NULL,
+                    fees_paid REAL DEFAULT 0.0
+                    )
+                """)
+         #Create payments table
+            self.cursor.execute("""
+                CREATE TABLE IF NOT EXISTS payment (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                room_number TEXT NOT NULL
-            )
-        """)
-        self.conn.commit()
+                amount REAL,
+                date TEXT
+                )
+                """)
+            #create rooms table
+            self.cursor.execute("""  CREATE TABLE IF NOT EXISTS rooms(
+                room_number INTEGER ,
+                capacity INTEGER,
+                is_available BOOLEAN DEFAULT 1
+        
+                )
+                """)
 
+            self.conn.commit()
+            
+        except sqlite3.Error as e:
+            logging.error("Table creation failed: %s", e)
+            messagebox.showerror("Database Error", "Could not initialize tables.")
+
+    
+
+    def show_add_student_form(self):
+        self.add_student_frame = tk.Frame(self.window, bg="#0BA68A")
+        self.add_student_frame.pack(pady=10)
+ 
+        tk.Label(self.add_student_frame, text="Student Name:", bg="#0BA68A", fg="white").pack()
+        self.name_entry = tk.Entry(self.add_student_frame)
+        self.name_entry.pack(pady=5)
+
+        tk.Label(self.add_student_frame, text="Room Number:", bg="#0BA68A", fg="white").pack()
+        self.room_entry = tk.Entry(self.add_student_frame)
+        self.room_entry.pack(pady=5)
+
+        tk.Button(self.add_student_frame, text="Submit", bg="green", fg="white", command=self.add_student).pack(pady=10)
+
+    def show_delete_form(self):
+        self.delete_frame = tk.Frame(self.window, bg="#0BA68A")
+        self.delete_frame.pack(pady=10)
+
+        tk.Label(self.delete_frame, text="Student Name to Delete:", bg="#0BA68A", fg="white").pack()
+        self.delete_name_entry = tk.Entry(self.delete_frame)
+        self.delete_name_entry.pack(pady=5)
+
+        tk.Button(self.delete_frame, text="Delete", bg="red", fg="white", command=self.delete_student).pack(pady=10)
+
+    
     def add_student(self):
-        """Adds a new student to the database from input fields."""
-        room = self.room_entry.get().strip()
         name = self.name_entry.get().strip()
-
+        room = self.room_entry.get().strip()
+        
         if name and room:
             try:
                 self.cursor.execute("INSERT INTO students (name, room_number) VALUES (?, ?)", (name, room))
@@ -151,14 +215,38 @@ class HostelManagementSystem:
 
     def view_students(self):
         """Retrieves and displays all students from the database."""
-        self.cursor.execute("SELECT name, room_number FROM students")
-        students = self.cursor.fetchall()
+        view_win = tk.Toplevel(self.window)
+        view_win.title("VIEW STUDENTS")
+        view_win.geometry("500x600")
+        view_win.config(bg="#0BA68A")
+        
+        tk.Label(view_win, text="Students List", bg="#0BA68A", fg="white", font=("Arial", 14, "bold")).pack(pady=10)
 
-        if not students:
-            messagebox.showinfo("Students", "No students added yet.")
-        else:
+         # Treeview Widget
+        columns = ("ID", "Name", "Age", "Room", "Fees Paid")
+        tree = ttk.Treeview(view_win, columns=columns, show="headings")
+    
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, anchor="center", width=90)
+
+        tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Fetch data from the database
+        self.cursor.execute("SELECT id, name, age, room_number, fees_paid FROM students")
+        students = self.cursor.fetchall()
+        
+        if students:
+           for student in students:
+            tree.insert("", tk.END, values=student)
             student_list = "\n".join([f"{s[0]} - Room {s[1]}" for s in students])
             messagebox.showinfo("Students List", student_list)
+            
+        else:
+            messagebox.showinfo("No Records", "No students found in the database.")
+
+
+        
 
     def show_available_rooms(self):
         # Get rooms already taken
@@ -252,7 +340,7 @@ class HostelManagementSystem:
         """Closes the database connection when the app is closed."""
         self.conn.close()
 
-
+# MAIN LOOP
 if __name__ == "__main__":
     window = tk.Tk()
     login(window)
