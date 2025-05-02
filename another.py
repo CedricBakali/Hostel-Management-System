@@ -52,12 +52,25 @@ class HostelManagementSystem:
         self.window.title("Hostel Management System")
         self.window.config(bg="#0BA68A")
         self.window.geometry("700x800")
+        
+        
 
+        
+       
+
+        #variables
         # List of all room numbers
         self.all_rooms = [str(i) for i in range(1, 51)]
-
         # Valid room range
         self.valid_room_range = range(1, 51)
+        self.age_var = tk.StringVar()
+        self.course_var = tk.StringVar()
+        
+        self.fees_name_entry = None
+        self.payment_entry = None
+        self.fees_frame = None
+        
+
 
 
 
@@ -81,19 +94,22 @@ class HostelManagementSystem:
         #self.room_entry.pack(pady=5)
 
         # Buttons
-        self.add_student_button = tk.Button(window, text="Add Student", bg="#0BA68A", command=self.show_add_student_form)
+        self.add_student_button = tk.Button(window, text="Add Student", fg="white",bg="#0BA68A", command=self.show_add_student_form)
         self.add_student_button.pack(pady=10)
 
-        self.view_students_button = tk.Button(window, text="View Students", bg="#0BA68A", command=self.view_students)
+        self.view_students_button = tk.Button(window, text="View Students", fg="white",bg="#0BA68A", command=self.view_students)
         self.view_students_button.pack(pady=10)
 
-        self.available_rooms_button = tk.Button(window, text="Show Available Rooms", bg="#0BA68A", command=self.show_available_rooms)
+        self.available_rooms_button = tk.Button(window, text="Show Available Rooms",fg="white", bg="#0BA68A", command=self.show_available_rooms)
         self.available_rooms_button.pack(pady=10)
 
-        self.update_button = tk.Button(window, text="Update Student Info", bg="#0BA68A", command=self.show_update_form)
+        self.update_button = tk.Button(window, text="Update Student Info", fg="white",bg="#0BA68A", command=self.show_update_form)
         self.update_button.pack(pady=10)
+        
+        self.fees_button = tk.Button(window, text="Fees Payment", fg="white",bg="#0BA68A",command=self.fees_payment)
+        self.fees_button.pack(padx=10)
 
-        self.delete_button = tk.Button(window, text="Delete Student", bg="#0BA68A", command=self.show_delete_form)
+        self.delete_button = tk.Button(window, text="Delete Student",fg="white", bg="#0BA68A", command=self.show_delete_form)
         self.delete_button.pack(pady=10)
         
         
@@ -138,11 +154,14 @@ class HostelManagementSystem:
     def create_table(self):
         # Creates the students table.
         try:
+            #self.cursor.execute("DROP TABLE IF EXISTS students")
+
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS students (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     age INTEGER,
+                    course TEXT,
                     room_number TEXT NOT NULL,
                     fees_paid REAL DEFAULT 0.0
                     )
@@ -169,23 +188,46 @@ class HostelManagementSystem:
         except sqlite3.Error as e:
             logging.error("Table creation failed: %s", e)
             messagebox.showerror("Database Error", "Could not initialize tables.")
+      
+    
+
 
     
 
     def show_add_student_form(self):
-        self.add_student_frame = tk.Frame(self.window, bg="#0BA68A")
+
+        # Clear previous frame if exists
+        if hasattr(self, 'add_student_frame'):
+            self.add_student_frame.destroy()
+    
+        self.add_student_frame = tk.Frame(self.window, bg="#0BA68A", padx=20, pady=20)
         self.add_student_frame.pack(pady=10)
- 
-        tk.Label(self.add_student_frame, text="Student Name:", bg="#0BA68A", fg="white").pack()
-        self.name_entry = tk.Entry(self.add_student_frame)
-        self.name_entry.pack(pady=5)
+    
+        fields = [
+            ("Student Name:", "name_entry"),
+            ("Room Number:", "room_entry"), 
+            ("Course:", "course_var"),
+            ("Age:", "age_var")
+    ]
+    
+        for i, (label_text, var_name) in enumerate(fields):
+            tk.Label(self.add_student_frame, text=label_text, bg="#0BA68A", fg="white").grid(row=i, column=0, pady=5, sticky="e")
+        
+            if var_name.endswith("_var"):
+                entry = tk.Entry(self.add_student_frame, textvariable=getattr(self, var_name))
+            else:
+                entry = tk.Entry(self.add_student_frame)
+                setattr(self, var_name, entry)
+            
+            entry.grid(row=i, column=1, pady=5, padx=5)
+    
+        tk.Button(self.add_student_frame, text="Submit", bg="#4CAF50", fg="white",command=self.add_student).grid(row=len(fields), column=0, columnspan=2, pady=10)
+       
 
-        tk.Label(self.add_student_frame, text="Room Number:", bg="#0BA68A", fg="white").pack()
-        self.room_entry = tk.Entry(self.add_student_frame)
-        self.room_entry.pack(pady=5)
+        
+    
 
-        tk.Button(self.add_student_frame, text="Submit", bg="green", fg="white", command=self.add_student).pack(pady=10)
-
+    
     def show_delete_form(self):
         self.delete_frame = tk.Frame(self.window, bg="#0BA68A")
         self.delete_frame.pack(pady=10)
@@ -200,30 +242,47 @@ class HostelManagementSystem:
     def add_student(self):
         name = self.name_entry.get().strip()
         room = self.room_entry.get().strip()
-        
-        if name and room:
-            try:
-                self.cursor.execute("INSERT INTO students (name, room_number) VALUES (?, ?)", (name, room))
-                self.conn.commit()
-                messagebox.showinfo("Success", f"Student {name} added to Room {room}")
-                self.name_entry.delete(0, tk.END)
-                self.room_entry.delete(0, tk.END)
-            except sqlite3.Error as e:
-                messagebox.showerror("Database Error", "Failed to add student.")
-        else:
-            messagebox.showwarning("Input Error", "Please enter both name and room number")
+        course = self.course_var.get().strip()
+        age = self.age_var.get().strip()
+
+        if not name or not room or not course or not age:
+            messagebox.showwarning("Input Error", "Please fill in all required fields.")
+            return
+
+        try:
+            age = int(age)
+        except ValueError:
+            messagebox.showwarning("Input Error", "Age must be a number.")
+            return
+
+        try:
+            self.cursor.execute(
+            "INSERT INTO students (name, age, course, room_number) VALUES (?, ?, ?, ?)",
+            (name, age, course, room)
+            )
+            self.conn.commit()
+            messagebox.showinfo("Success", f"Student {name} added to Room {room}")
+            self.name_entry.delete(0, tk.END)
+            self.room_entry.delete(0, tk.END)
+            self.course_var.set("")
+            self.age_var.set("")
+        except sqlite3.Error as e:
+            messagebox.showerror("Database Error", f"Failed to add student: {e}")
+            
+        self.add_student_frame.pack_forget()    
+
 
     def view_students(self):
         """Retrieves and displays all students from the database."""
         view_win = tk.Toplevel(self.window)
         view_win.title("VIEW STUDENTS")
-        view_win.geometry("500x600")
+        view_win.geometry("700x400")
         view_win.config(bg="#0BA68A")
         
         tk.Label(view_win, text="Students List", bg="#0BA68A", fg="white", font=("Arial", 14, "bold")).pack(pady=10)
 
          # Treeview Widget
-        columns = ("ID", "Name", "Age", "Room", "Fees Paid")
+        columns = ("ID", "Name", "Age","Course", "Room", "Fees Paid")
         tree = ttk.Treeview(view_win, columns=columns, show="headings")
     
         for col in columns:
@@ -232,18 +291,24 @@ class HostelManagementSystem:
 
         tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Fetch data from the database
-        self.cursor.execute("SELECT id, name, age, room_number, fees_paid FROM students")
-        students = self.cursor.fetchall()
         
-        if students:
-           for student in students:
-            tree.insert("", tk.END, values=student)
-            student_list = "\n".join([f"{s[0]} - Room {s[1]}" for s in students])
-            messagebox.showinfo("Students List", student_list)
-            
-        else:
-            messagebox.showinfo("No Records", "No students found in the database.")
+        
+        # Fetch data from database
+        try:
+            self.cursor.execute("SELECT id, name, age, course, room_number, fees_paid FROM students")
+            students = self.cursor.fetchall()
+        
+            if not students:
+                tree.insert("", tk.END, values=("No records found", "", "", "", "", ""))
+            else:
+                for student in students:
+                    tree.insert("", tk.END, values=student)
+        except sqlite3.Error as e:
+            messagebox.showerror("Database Error", f"Failed to fetch data: {e}")
+    
+
+        
+       
 
 
         
@@ -263,8 +328,8 @@ class HostelManagementSystem:
 
     def update_student(self):
         original_name = self.update_name_entry.get().strip()
-        new_name = self.new_name_entry.get().strip()
-        new_room = self.new_room_entry.get().strip()
+        new_name = self.new_name_entry.strip()
+        new_room = self.new_room_entry.strip()
 
         if not original_name:
             messagebox.showwarning("Input Error", "Please enter the student's current name.")
@@ -310,7 +375,68 @@ class HostelManagementSystem:
             self.update_frame.pack_forget()
         except sqlite3.Error as e:
             messagebox.showerror("Database Error", f"Failed to update: {e}")
-
+            
+    def fees_payment(self):
+        name = self.fees_name_entry.strip()
+        payment = self.payment_entry.strip()
+    
+        if not name:
+            messagebox.showwarning("Error", "Please enter student name")
+            return
+    
+        if not payment:
+            messagebox.showwarning("Error", "Please enter payment amount")
+            return
+    
+        try:
+            payment = float(payment)
+            if payment <= 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Error", "Payment must be a positive number")
+            return
+    
+        # Update fees in database
+        try:
+            # Get current fees
+            self.cursor.execute("SELECT id, fees_paid FROM students WHERE name=?", (name,))
+            student_data = self.cursor.fetchone()
+        
+            if not student_data:
+                messagebox.showerror("Error", "Student not found")
+                return
+        
+            student_id, current_fees = student_data
+            new_fees = current_fees + payment
+        
+            # Update student record
+            self.cursor.execute("""
+                UPDATE students 
+                SET fees_paid = ?
+                WHERE id = ?
+            """, (new_fees, student_id))
+        
+            # Record payment in payment table
+            today = date.today().isoformat()
+            self.cursor.execute("""
+                INSERT INTO payment (student_id, amount, date)
+                VALUES (?, ?, ?)
+            """, (student_id, payment, today))
+        
+            self.conn.commit()
+        
+            messagebox.showinfo("Success", 
+                          f"Added ${payment:.2f} payment for {name}\n"
+                          f"Total paid: ${new_fees:.2f}")
+        
+        # Clear form
+            self.fees_name_entry.delete(0, tk.END)
+            self.payment_entry.delete(0, tk.END)
+            self.fees_frame.pack_forget()
+        
+        except sqlite3.Error as e:
+            messagebox.showerror("Database Error", f"Failed to process payment: {e}")
+    
     def delete_student(self):
         name_to_delete = self.delete_name_entry.get().strip()
 
