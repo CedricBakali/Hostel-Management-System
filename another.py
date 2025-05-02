@@ -159,7 +159,7 @@ class HostelManagementSystem:
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS students (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
+                    name TEXT NOT NULL UNIQUE,
                     age INTEGER,
                     course TEXT,
                     room_number TEXT NOT NULL,
@@ -255,6 +255,12 @@ class HostelManagementSystem:
             messagebox.showwarning("Input Error", "Age must be a number.")
             return
 
+         # Check for existing student
+        self.cursor.execute("SELECT id FROM students WHERE name = ?", (name,))
+        if self.cursor.fetchone():
+            messagebox.showerror("Error", f"Student '{name}' already exists!")
+            return
+        
         try:
             self.cursor.execute(
             "INSERT INTO students (name, age, course, room_number) VALUES (?, ?, ?, ?)",
@@ -328,8 +334,8 @@ class HostelManagementSystem:
 
     def update_student(self):
         original_name = self.update_name_entry.get().strip()
-        new_name = self.new_name_entry.strip()
-        new_room = self.new_room_entry.strip()
+        new_name = self.new_name_entry.get().strip()
+        new_room = self.new_room_entry.get().strip()
 
         if not original_name:
             messagebox.showwarning("Input Error", "Please enter the student's current name.")
@@ -354,6 +360,14 @@ class HostelManagementSystem:
         # Find the student by name
         self.cursor.execute("SELECT * FROM students WHERE name = ?", (original_name,))
         student = self.cursor.fetchone()
+        
+         # Check if new name already exists (if changing name)
+        if new_name and new_name != original_name:
+            self.cursor.execute("SELECT id FROM students WHERE name = ?", (new_name,))
+            if self.cursor.fetchone():
+                messagebox.showerror("Error", f"Student '{new_name}' already exists!")
+                return
+        
 
         if not student:
             messagebox.showerror("Not Found", "Student not found.")
@@ -377,65 +391,28 @@ class HostelManagementSystem:
             messagebox.showerror("Database Error", f"Failed to update: {e}")
             
     def fees_payment(self):
-        name = self.fees_name_entry.strip()
-        payment = self.payment_entry.strip()
+        
+        self.payment_win = tk.Toplevel(self.window)
+        self.payment_win.title("Fee Payment")
+        self.window.config(bg="#0BA68A")
+        self.payment_win.geometry("400x300")
     
-        if not name:
-            messagebox.showwarning("Error", "Please enter student name")
-            return
+        # Student selection
+        tk.Label(self.payment_win, text="Select Student:").pack()
+        self.student_combo = ttk.Combobox(self.payment_win)
+        self.student_combo.pack(pady=5)
     
-        if not payment:
-            messagebox.showwarning("Error", "Please enter payment amount")
-            return
+        # Load student names
+        self.cursor.execute("SELECT id, name FROM students")
+        self.student_combo['values'] = [f"{row[0]} - {row[1]}" for row in self.cursor.fetchall()]
     
-        try:
-            payment = float(payment)
-            if payment <= 0:
-                raise ValueError
-        except ValueError:
-            messagebox.showerror("Error", "Payment must be a positive number")
-            return
+        # Payment amount
+        tk.Label(self.payment_win, text="Amount:").pack()
+        self.payment_amount = tk.Entry(self.payment_win)
+        self.payment_amount.pack(pady=5)
     
-        # Update fees in database
-        try:
-            # Get current fees
-            self.cursor.execute("SELECT id, fees_paid FROM students WHERE name=?", (name,))
-            student_data = self.cursor.fetchone()
-        
-            if not student_data:
-                messagebox.showerror("Error", "Student not found")
-                return
-        
-            student_id, current_fees = student_data
-            new_fees = current_fees + payment
-        
-            # Update student record
-            self.cursor.execute("""
-                UPDATE students 
-                SET fees_paid = ?
-                WHERE id = ?
-            """, (new_fees, student_id))
-        
-            # Record payment in payment table
-            today = date.today().isoformat()
-            self.cursor.execute("""
-                INSERT INTO payment (student_id, amount, date)
-                VALUES (?, ?, ?)
-            """, (student_id, payment, today))
-        
-            self.conn.commit()
-        
-            messagebox.showinfo("Success", 
-                          f"Added ${payment:.2f} payment for {name}\n"
-                          f"Total paid: ${new_fees:.2f}")
-        
-        # Clear form
-            self.fees_name_entry.delete(0, tk.END)
-            self.payment_entry.delete(0, tk.END)
-            self.fees_frame.pack_forget()
-        
-        except sqlite3.Error as e:
-            messagebox.showerror("Database Error", f"Failed to process payment: {e}")
+        # Submit button
+        tk.Button(self.payment_win, text="Record Payment", command=self.record_payment).pack(pady=10)
     
     def delete_student(self):
         name_to_delete = self.delete_name_entry.get().strip()
