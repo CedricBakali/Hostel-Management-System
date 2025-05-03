@@ -394,11 +394,11 @@ class HostelManagementSystem:
         
         self.payment_win = tk.Toplevel(self.window)
         self.payment_win.title("Fee Payment")
-        self.window.config(bg="#0BA68A")
+        self.payment_win.config(bg="#0BA68A")
         self.payment_win.geometry("400x300")
     
         # Student selection
-        tk.Label(self.payment_win, text="Select Student:").pack()
+        tk.Label(self.payment_win, text="Select Student:",bg="#0BA68A").pack()
         self.student_combo = ttk.Combobox(self.payment_win)
         self.student_combo.pack(pady=5)
     
@@ -407,13 +407,50 @@ class HostelManagementSystem:
         self.student_combo['values'] = [f"{row[0]} - {row[1]}" for row in self.cursor.fetchall()]
     
         # Payment amount
-        tk.Label(self.payment_win, text="Amount:").pack()
+        tk.Label(self.payment_win, text="Amount:",bg="#0BA68A").pack()
         self.payment_amount = tk.Entry(self.payment_win)
         self.payment_amount.pack(pady=5)
     
         # Submit button
         tk.Button(self.payment_win, text="Record Payment", command=self.record_payment).pack(pady=10)
     
+    def record_payment(self):
+        try:
+            # Get selected student
+            selection = self.student_combo.get()
+            if not selection:
+                raise ValueError("Please select a student")
+            
+            student_id = int(selection.split(" - ")[0])
+            amount = float(self.payment_amount.get())
+        
+            if amount <= 0:
+                raise ValueError("Amount must be positive")
+        
+            # Record payment
+            today = date.today().isoformat()
+            self.cursor.execute("""
+                INSERT INTO payment (id, amount, date)
+                VALUES (?, ?, ?)
+            """, (student_id, amount, today))
+        
+            # Update student's total fees
+            self.cursor.execute("""
+                UPDATE students 
+                SET fees_paid = fees_paid + ? 
+                WHERE id = ?
+            """, (amount, student_id))
+        
+            self.conn.commit()
+            messagebox.showinfo("Success", f"Payment of Mwk{amount:.2f} recorded")
+            self.payment_win.destroy()
+        
+        except ValueError as e:
+            messagebox.showerror("Input Error", str(e))
+        except sqlite3.Error as e:
+            messagebox.showerror("Database Error", f"Failed to record payment: {e}")
+        
+        
     def delete_student(self):
         name_to_delete = self.delete_name_entry.get().strip()
 
